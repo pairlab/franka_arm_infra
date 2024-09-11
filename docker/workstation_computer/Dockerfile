@@ -1,63 +1,47 @@
-ARG image=nvidia/cudagl:11.1.1-devel-ubuntu20.04
-FROM ${image}
+FROM osrf/ros:noetic-desktop-full
 
-ARG DEBIAN_FRONTEND=noninteractive
-ARG workstation_ip=192.168.0.1
-ARG use_robotiq=1
-ARG build_dope=1
-ARG build_contactgraspnet=1
-ARG build_megapose=1
-ENV WS_DIR="/root/git"
+ENV WS_DIR="/root"
 WORKDIR ${WS_DIR}
 
 SHELL ["/bin/bash", "-c"]
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+ARG workstation_ip=192.168.0.1
+ARG realtime_computer_ip=192.168.0.3
+ARG robot_server_version=5
+
+RUN mkdir /root/catkin_ws/src -p 
+COPY ./csc376_prac3/prac3 /root/catkin_ws/src/prac3
+
+# COPY ./csc376_prac3/launch_robot_control_client.sh  /root/
+
 # Dependencies for latency plot
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+RUN apt-get update && apt-get -y upgrade \
+    && apt-get install -y \
     curl \
     grep \
     build-essential \
     make \
     libnuma-dev \
     python3 \
+    python3-pip \    
     python3-distutils \
-    gnuplot-qt \ 
-    sshpass \
+    gnuplot-qt\
     iproute2 \
-    python3-pip \
-    gnome-terminal\
-    nano\
-    vim
+    sshpass 
 # Dependencies for Bash unit-tests
 RUN apt-get update && apt-get install -y \
     bats \
     dialog \
     tmux \
-    iputils-ping 	
-
-# ROS Install
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
-RUN echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main" > /etc/apt/sources.list.d/ros-latest.list
-
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    python3-rosdep \
-    python3-rosinstall \
-    python3-vcstools \
-    python3-catkin-tools \
-    ros-noetic-jsk-tools \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN rosdep init && \
-    rosdep update
-
-RUN apt-get update && apt-get install -y \
-    ros-noetic-desktop-full \
-    && rm -rf /var/lib/apt/lists/*
-
-ENV ROS_DISTRO noetic
+    iputils-ping 
 
 # Dependencies for franka-interface and protobuf
 RUN apt-get update && apt-get install -y \
     git \
+    vim \
+    nano\
     wget \ 
     autoconf \ 
     automake \ 
@@ -66,161 +50,101 @@ RUN apt-get update && apt-get install -y \
     make \
     g++ \
     unzip \
-    python3-catkin-tools \ 
-    python3-tk
+    python3-catkin-tools
+
+RUN  apt-get install -y ros-noetic-moveit-core \
+                    ros-noetic-moveit-ros-planning \
+                    ros-noetic-moveit-ros-planning-interface \
+                    ros-noetic-moveit-ros-perception \
+                    ros-noetic-rviz-visual-tools \
+                    ros-noetic-moveit-visual-tools \
+                    ros-noetic-libfranka \
+                    ros-noetic-franka-ros \
+                    ros-noetic-ompl \
+                    ros-noetic-moveit-planners \
+                    ros-noetic-moveit-ros-visualization \
+                    ros-noetic-moveit-simple-controller-manager \
+                    ros-noetic-moveit-commander 
+
+RUN cd ~/catkin_ws \
+    && source /opt/ros/noetic/setup.bash \
+    && sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F42ED6FBAB17C654 \
+    && rosdep install -y --from-paths . --ignore-src --rosdistro noetic \
+    && sudo sh -c 'echo "deb http://packages.ros.org/ros-testing/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list' \
+    && sudo apt update \
+    && catkin config --extend /opt/ros/${ROS_DISTRO} --cmake-args -DCMAKE_BUILD_TYPE=Release \
+    && catkin build
 
 # Build and install Protobuf 
-RUN cd \
-    # && mkdir git \
-    && cd git \ 
-    && wget https://github.com/protocolbuffers/protobuf/releases/download/v3.11.4/protobuf-all-3.11.4.zip \ 
-    && unzip protobuf-all-3.11.4.zip \ 
-    && cd protobuf-3.11.4 \ 
-    && ./configure \
-    && make -j$(nproc) \
-    && make check -j$(nproc) \ 
-    && sudo make install \ 
-    && sudo ldconfig \
-    && rm /root/git/protobuf-all-3.11.4.zip
+# RUN cd \
+#     # && mkdir git \
+#     && cd git \ 
+#     && wget https://github.com/protocolbuffers/protobuf/releases/download/v3.11.4/protobuf-all-3.11.4.zip \ 
+#     && unzip protobuf-all-3.11.4.zip \ 
+#     && cd protobuf-3.11.4 \ 
+#     && ./configure \
+#     && make -j$(nproc) \
+#     && make check -j$(nproc) \ 
+#     && sudo make install \ 
+#     && sudo ldconfig 
 
-# Dependencies for franka-interface and protobuf
-RUN apt-get install -y \
-    ros-noetic-libfranka \
-    ros-noetic-franka-ros \
-    ros-noetic-franka-gripper \
-    ros-noetic-realsense2-camera
 
-RUN echo "Installing conda"
-ENV PATH /opt/conda/bin:$PATH
-RUN  export CONDA_DIR=/opt/conda \
-    && wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh  \
-    && /bin/bash ~/miniconda.sh -b -p /opt/conda \ 
-    && export PATH=$CONDA_DIR/bin:$PATH \ 
-    && source ~/.bashrc \
-    && conda config --set auto_activate_base false \ 
-    && conda init bash \ 
-    && conda install python=3.8
-    # && conda deactivate
 
-RUN echo "cloning building autolab perception"
-RUN cd ~/git \ 
-    && git clone --recurse-submodules https://github.com/BerkeleyAutomation/perception
-RUN cd ~/git/perception \
-    && pip3 install -e .
 
-RUN pip3 install -U rosdep rosinstall_generator wstool rosinstall six vcstools
+# # Dependencies for franka-interface and protobuf
+# RUN apt-get install -y  ros-noetic-realsense2-camera ros-noetic-combined-robot-hw
 
-RUN echo "cloning frankapy"
-RUN cd ~/git \ 
-    && git clone --recurse-submodules https://github.com/Ruthrash/frankapy 
+# RUN cd ~/git \ 
+#     && git clone --recurse-submodules https://github.com/Ruthrash/franka-interface \
+#     && cd franka-interface 
 
-RUN echo "building frankapy python modules"
-RUN cd ~/git/frankapy \
-    && pip3 install empy==3.3.4 \
-    &&  pip3 install -e .
+# RUN echo "cloning libfranka"
+# RUN cd ~/git/franka-interface \
+#     && bash ./bash_scripts/clone_libfranka.sh ${robot_server_version}
 
-RUN echo "compiling frankapy catkin_ws"
-RUN cd ~/git/frankapy \ 
-    && source /opt/ros/noetic/setup.bash \
-    && ./bash_scripts/make_catkin.sh
+# RUN echo "building libfranka"
+# RUN cd ~/git/franka-interface \
+#     && bash ./bash_scripts/make_libfranka.sh
 
-RUN echo "compiling custom protobuf messages"
-RUN cd ~/git/frankapy \ 
-    && ./bash_scripts/make_proto.sh
+# RUN echo "building franka-interface"
+# RUN cd ~/git/franka-interface \
+#     && bash ./bash_scripts/make_franka_interface.sh
 
-RUN apt-get install -y \
-    ros-noetic-libfranka \
-    ros-noetic-franka-ros \
-    ros-noetic-franka-gripper \
-    ros-noetic-rosbash ros-noetic-ros-comm
+# RUN echo "making ROS catkin workspace for franka-interface"
+# RUN cd ~/git/franka-interface/catkin_ws/src \
+#     && git clone https://github.com/frankaemika/franka_ros && cd franka_ros && git switch noetic-devel \
+#     && rm -r franka_gazebo \ 
+#     && cd ~/git/franka-interface \
+#     && source /opt/ros/noetic/setup.bash \
+#     && bash ./bash_scripts/make_catkin.sh 
+
+# RUN echo "cloning and building libzmq"
+# RUN cd ~/git \ 
+#     && git clone https://github.com/zeromq/libzmq  \
+#     && cd libzmq \ 
+#     && mkdir build \ 
+#     && cd build \ 
+#     && cmake .. \ 
+#     && sudo make  install 
+
+# RUN echo "cloning and building cppzmq"
+# RUN cd ~/git \ 
+#     && git clone https://github.com/zeromq/cppzmq \
+#     && cd cppzmq \ 
+#     && mkdir build \ 
+#     && cd build \ 
+#     && cmake .. \ 
+#     && sudo make  install 
 
 RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
-RUN echo "source /root/git/frankapy/catkin_ws/devel/setup.bash " >> ~/.bashrc
- 
-RUN echo "export ROS_IP=${workstation_ip}" >> ~/.bashrc
-RUN echo "export ROS_MASTER_URI=http://${workstation_ip}:11311" >> ~/.bashrc
-RUN echo "export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python" >> ~/.bashrc
-    
+RUN echo "source ~/catkin_ws/devel/setup.bash " >> ~/.bashrc
 
-RUN pip3 install --upgrade protobuf
+RUN echo "export ROS_MASTER_URI=http://192.168.1.111:11311" >> ~/.bashrc
+RUN echo "export ROS_IP=192.168.1.110" >> ~/.bashrc
+# RUN echo "export ROS_IP=${realtime_computer_ip}" >> ~/.bashrc
+# RUN echo "export ROS_MASTER_URI=http://${workstation_ip}:11311" >> ~/.bashrc
 
-RUN pip3 install numpy --force-reinstall
-#reinstalling numba seems to solve an error when we import FrankaArm from frankapy
-RUN pip3 install zmq pyrealsense2 numba scipy open3d  opencv-python  wrapt_timeout_decorator
-RUN if [[ "x$use_robotiq" == "x1" ]] ;\
-    then echo "use_robotiq is set to TRUE" \
-    && apt-get install ros-noetic-soem \
-    && pip3 install -U pymodbus==2.5.3 empy==3.3.4 \
-    && cd ~/git \
-    && mkdir -p robotiq_ws/src \
-    && cd robotiq_ws/src \
-    && git clone https://github.com/pairlab/robotiq.git \
-    && cd ../ \ 
-    && source /opt/ros/noetic/setup.bash\
-    && catkin build \
-    && echo "source ~/git/robotiq_ws/devel/setup.bash --extend"  >> ~/.bashrc ; \
-    fi
+# RUN pip3 install zmq pyrealsense2 numba scipy   
 
-RUN if [[ "x$build_contactgraspnet" == "x1" ]] ;\
-    then echo "build_contactgraspnet is set to TRUE" \
-    && echo "Building conda for contact_graspnet" \
-    && apt-get update && apt-get upgrade -y && apt-get install -y  freeglut3-dev\
-    && cd /root/git \ 
-    && git clone https://github.com/NVlabs/contact_graspnet \
-    && cd contact_graspnet\
-    && conda env create -f contact_graspnet_env.yml \
-    && source activate contact_graspnet_env\
-    && pip3 install open3d pyrealsense2\
-    && cd ~/git/frankapy \
-    # && pip install empy==3.3.4 \
-    && pip3 install -e . \
-    && conda deactivate\    
-    && conda deactivate; \     
-    fi
+ARG DEBIAN_FRONTEND=dialog
 
-    
-RUN if [[ "x$build_dope" == "x1" ]] ;\
-    then echo "build_dope is set to TRUE" \
-    && apt-get install ros-noetic-vision-msgs \ 
-    && echo "Building conda for DOPE" \
-    && cd /root/git && git clone https://github.com/NVlabs/Deep_Object_Pose.git dope \
-    && export CONDA_DIR=/opt/conda && export PATH=$CONDA_DIR/bin:$PATH \
-    && conda create --name dope python=3.8 \
-    && source activate dope\ 
-    && pip3 install catkin_pkg\  
-    && cd dope && python3 -m pip install -r requirements.txt\
-    && pip3 install -e . \ 
-    && pip3 install torch torchvision --upgrade \ 
-    && pip3 install numpy==1.20.3 \
-    && pip3 install open3d pyrealsense2  \ 
-    && cd ~/git/frankapy \
-    # && pip install empy==3.3.4 \
-    && pip3 install -e . \    
-    && conda deactivate \
-    && conda deactivate;\
-    fi
-
-RUN if [[ "x$build_megapose" == "x1" ]] ;\
-    then echo "build_megapose is set to TRUE" \
-    && cd /root/git && git clone --recurse-submodules https://github.com/megapose6d/megapose6d megapose \
-    && export CONDA_DIR=/opt/conda && export PATH=$CONDA_DIR/bin:$PATH \
-    && cd /root/git/megapose/conda \
-    && sed -i 's/notebook/notebook==6.4.12/g' environment_full.yaml \ 
-    &&  conda env create -f environment_full.yaml \
-    && source activate megapose\    
-    && cd /root/git/megapose && pip3 install -e . \ 
-    && python -m megapose.scripts.download --megapose_models \
-    && pip3 install torch torchvision --upgrade \ 
-    # && pip3 install numpy==1.20.3 \
-    && pip3 install open3d pyrealsense2 \ 
-    && cd ~/git/frankapy \
-    && pip install empy==3.3.4 \
-    && pip3 install -e . \    
-    && conda deactivate\
-    && conda deactivate \ 
-    && pip3 install rospkg  wrapt-timeout-decorator;\
-    fi    
-
-
-
-SHELL ["conda", "run", "-n", "myenv", "/bin/bash", "-c"]

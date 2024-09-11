@@ -18,10 +18,10 @@ services:
     privileged: true
     devices:
     - /dev:/dev
-    runtime: nvidia
+    # runtime: nvidia
     volumes:
-      # - ../../calibration:/root/git/calibration
-      - ../../frankapy_control_test_scripts:/root/git/frankapy_control_test_scripts
-      - ../../robot_toolkit:/root/git/robot_toolkit
-      - ../scratchpad:/root/git/scratchpad
+    #   # - ../../calibration:/root/git/calibration
+    #   - ../../frankapy_control_test_scripts:/root/git/frankapy_control_test_scripts
+    #   - ../../robot_toolkit:/root/git/robot_toolkit
+      - ../csc376_prac3/scripts:/root/scripts
 

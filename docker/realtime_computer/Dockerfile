@@ -136,6 +136,8 @@ RUN cd ~/catkin_ws \
 RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
 RUN echo "source ~/catkin_ws/devel/setup.bash " >> ~/.bashrc
 
+RUN echo "export ROS_MASTER_URI=http://192.168.1.111:11311" >> ~/.bashrc
+RUN echo "export ROS_IP=192.168.1.111" >> ~/.bashrc
 # RUN echo "export ROS_IP=${realtime_computer_ip}" >> ~/.bashrc
 # RUN echo "export ROS_MASTER_URI=http://${workstation_ip}:11311" >> ~/.bashrc
 
