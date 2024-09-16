@@ -17,11 +17,31 @@ from ..config_reader import write_dict_to_yaml
 from ..logger import logger
 
 def draw_estimated_frame(color_image, camera, rvec, tvec):
+    """! Plots the given pose as a rigidbody frame in the given image. 
+
+    @param     color_image (numpy array): 3 channel RGB or 1 channel grayscale image matrix.
+    @param     camera (Camera): an object of the Camera class
+    @param     rvec (numpy array): 3x1 angle-axis rotation vector of the pose to be drawn on the image. 
+    @param     tvec (numpy array): 3x1 translation vector of the pose to be to be drawn on the image. 
+
+    @return    numpy array: Image with the given pose drawn as a rigidbody frame in the given image.
+    """    
     cv2.drawFrameAxes(color_image, camera.camera_matrix, camera.dist_coeffs, rvec, tvec, 0.05)
     return color_image
 
 class RecordGrasps:
+    """! Class that is used to record grasp poses with an object manually. The object's pose is first estimated as the canonical object frame and the desired end-effector poses are recorded in this canonical object frame. 
+    """
     def __init__(self, object, camera, extrinsics_file, robot_pose_collector, output_file, camera_in_hand = True) -> None:
+        """! RecordGrasps Class constructor. 
+
+        @param    object_ (Object): an object of the Object class encapsulating the physical object that we want to grasp.
+        @param    camera (Camera): an object of the Camera class representing camera sensor hardware. 
+        @param    extrinsics_file (str): Path to the YAML that contains robot-camera extrinsics obtained by running robot-camera calibration routine. 
+        @param    robot_pose_collector (RobotPoseCollector): RobotPoseCollector object that returns robot's end-effector pose defined in the robot's base frame. 
+        @param    output_file (str): Path to the YAML where the recorded grasps are stored.  
+        @param    camera_in_hand (bool, optional): If true, camera is considered to be attached to the robot's end-effector, else to the robot's environment. Defaults to True.
+        """
         self.object = object    
         self.camera = camera
         self.extrinsics = read_cam_robot_extrinsics(extrinsics_file_name = extrinsics_file)
@@ -36,6 +56,16 @@ class RecordGrasps:
             self.output_dict["pose_estimator_data"] = dataclasses.asdict(self.object.tag.fiducial_data)
     
     def transform_2_object_frame(self, cam2base_tf, obj_rvec_in_cam, obj_tvec_in_cam, ee_rvec_in_base, ee_tvec_in_base):
+        """Transform the end-effector grasp pose from the robot's base frame to the object's canonical frame found from object's current pose in the camera frame. 
+
+        @param    cam2base_tf (numpy array): 4x4 Transformation matrix of the camera frame in the robot's base frame. 
+        @param    obj_rvec_in_cam (numpy array): 3x1 angle-axis rotation vector of the object's pose in the camera frame. 
+        @param    obj_tvec_in_cam (numpy array): 3x1 translation vector of the object's pose in the camera frame.
+        @param    ee_rvec_in_base (numpy array): 3x1 angle-axis rotation vector of the desired grasp pose of the end-effector in the robot's base frame moved by hand 
+        @param    ee_tvec_in_base (numpy array): 3x1 translation vector of the desired grasp pose of the end-effector in the robot's base frame moved by hand 
+
+        @return    numpy array: 4x4 Transformation matrix of the end-effector grasp pose in the object_'s canonical frame. 
+        """
         obj2cam_tf = tf_from_rvectvec(obj_rvec_in_cam, obj_tvec_in_cam)
         grasp2base_tf = tf_from_rvectvec(ee_rvec_in_base, ee_tvec_in_base)
         grasp2cam_tf = np.matmul(np.linalg.inv(cam2base_tf), grasp2base_tf)
@@ -43,6 +73,10 @@ class RecordGrasps:
         return grasp2obj_tf
     
     def get_cam2base_frame_tf(self,):
+        """! Gets current Camera frame defined in the robot's base frame using the robot camera extrinsic information. 
+
+        @return    numpy array: 4x4 Transformation matrix of the camera frame in the robot's base frame. 
+        """
         if(self.camera_in_hand):
             ee2base_rvec, ee2base_tvec = self.robot_pose_collector.get_ee_frame()
             ee2base = tf_from_rvectvec(ee2base_rvec, ee2base_tvec)
@@ -51,6 +85,14 @@ class RecordGrasps:
             return self.extrinsics 
     
     def plot_image_with_frame(self, color_image, frame2cam_rvec, frame2cam_tvec):
+        """! Plots the given pose as a rigidbody frame in the given image. 
+
+        @param     color_image (numpy array): 3 channel RGB or 1 channel grayscale image matrix.
+        @param     frame2cam_rvec (numpy array): 3x1 angle-axis rotation vector of the pose in the camera frame to be drawn on the image. 
+        @param     frame2cam_tvec (numpy array): 3x1 translation vector of the pose in the camera frame to be to be drawn on the image. 
+
+        @return    numpy array: Image with the given pose drawn as a rigidbody frame in the given image.
+        """          
         color_image = color_image.copy()
         color_image = draw_estimated_frame(color_image = color_image,
                                                         camera = self.camera,
@@ -60,6 +102,8 @@ class RecordGrasps:
         plt.show(block=False)
 
     def run_grasp_recorder(self,):
+        """This function is run to interact with the user and collect desired grasp poses of an object. Throughout this loop, the object should NOT be moved from the scene because its initial pose is taken as the object's canonical frame.
+        """
         while(True):
             color_image = self.camera.get_current_rgb_frame()
             tag_rvec, tag_tvec, tag_detection = self.object.get_object_pose(color_image = self.camera.get_current_rgb_frame(), 

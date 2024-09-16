@@ -2,13 +2,12 @@ import os
 import yaml
 
 def recursive_key_value_assign(d,ks,v):
-    """
+    """!
     Recursive value assignment to a nested dict
 
-    Arguments:
-        d {dict} -- dict
-        ks {list} -- list of hierarchical keys
-        v {value} -- value to assign
+    @param    d (dict): dict
+    @param    ks (list): list of hierarchical keys
+    @param    v (value): value to assign
     """
     
     if len(ks) > 1:
@@ -17,21 +16,17 @@ def recursive_key_value_assign(d,ks,v):
         d[ks[0]] = v
  
 def load_config(checkpoint_dir, batch_size=None, max_epoch=None, data_path=None, arg_configs=[], save=False):
-    """
+    """!
     Loads yaml config file and overwrites parameters with function arguments and --arg_config parameters
 
-    Arguments:
-        checkpoint_dir {str} -- Checkpoint directory where config file was copied to
+    @param    checkpoint_dir (str): Checkpoint directory where config file was copied to
+    @param    batch_size (int): batch_size. defaults to {None}
+    @param    max_epoch (int): "epochs" (number of scenes) to train defaults to None
+    @param    data_path (str): path to scenes with contact grasp data defaults to None
+    @param    arg_configs (list): Overwrite config parameters by hierarchical command line arguments defaults to []
+    @param    save (bool): Save overwritten config file (default: False
 
-    Keyword Arguments:
-        batch_size {int} -- [description] (default: {None})
-        max_epoch {int} -- "epochs" (number of scenes) to train (default: {None})
-        data_path {str} -- path to scenes with contact grasp data (default: {None})
-        arg_configs {list} -- Overwrite config parameters by hierarchical command line arguments (default: {[]})
-        save {bool} -- Save overwritten config file (default: {False})
-
-    Returns:
-        [dict] -- Config
+    @return    dict: Configuration of the pretrained contact_graspnet model 
     """
 
     config_path = os.path.join(checkpoint_dir, 'config.yaml')

@@ -2,24 +2,33 @@ import numpy as np
 import cv2
 import zmq
 from ._data_collector import RobotPoseCollector
+
 from wrapt_timeout_decorator import *
-"""
-queries a zmq server located in the realtime machine to get ee frame. 
-Useful to move Franka manually when status LED is white. TF tree maybe corrupted when light is white
-"""
+
 class ZmqRobotPoseCollector(RobotPoseCollector):
+    """! RobotPoseCollector Class Abstract implementation based on zmq server. This class expects a zmq server to run on the realtime computer connected to the robot. 
+    Useful to move Franka manually when status LED is white. ROS TF tree maybe corrupted when status LED is turned white when using frankapy.
+
+    """
     def __init__(self, zmq_ip, zmq_port):
+        """! ZmqRobotPoseCollector Class Constructor. Sets up a ZMQ client
+
+        @param    zmq_ip (str): IP address of the computer in which the zmq server is running
+        @param    zmq_port (str): arbitrary zmq port. ensure it is the same port on the zmq server running on the realtime computer
+        """
         RobotPoseCollector.__init__(self)
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         socket_address = "tcp://" + zmq_ip + ":" + zmq_port 
         self.socket.connect(socket_address)
     
-    """
-    todo: see if blocking call takes long and throws error that not getting reply from server
-    """
     @timeout(5.0)
     def get_ee_frame(self,):
+        """! Returns the robot's end-effector pose measured in the robot's base frame 
+
+        @return    numpy array: 3x1 angle-axis representation of rotation
+        @return    numpy array: 3x1 translation vector
+        """
         self.socket.send_string("data")#even an empty message would do
         message = self.socket.recv()# receives EE pose 
         zmq_pose = np.frombuffer(message).astype(np.float32)

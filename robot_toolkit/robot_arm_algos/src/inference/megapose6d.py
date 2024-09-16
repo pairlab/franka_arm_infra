@@ -37,11 +37,24 @@ AVAILABLE_MODELS = ["megapose-1.0-RGB-multi-hypothesis",
                     "megapose-1.0-RGB"]
 
 def rvectvec_from_tf(tf):
+    """! Gets Angle-axis rotation vector and translation vector from 4x4 Transformation matrix.
+
+    @param    tf (numpy array): 4x4 Transformation matrix.
+
+    @param    numpy array: 3 dimensional angle-axis rotation vector. 
+    @param    numpy array: 3 dimensional translation vector. 
+    """
     rvec = cv2.Rodrigues(tf[0:3,0:3])[0]
     tvec = tf[0:3, -1]
     return rvec, tvec
 
 def make_object_dataset(obj_dir_name: str) -> RigidObjectDataset:
+    """! Creates and returns a RigidObjectDataset object that has the mesh for the physical object we want to do pose estimation for. 
+
+    @param    obj_dir_name (str): Path to an object's meshes.
+
+    @return    RigidObjectDataset: RigidObjectDataset class's object that contains mesh of the object who's pose we want to predict.
+    """
     object_dir_path = Path(obj_dir_name)
     rigid_objects = []
     mesh_units = "m"
@@ -61,6 +74,13 @@ def make_object_dataset(obj_dir_name: str) -> RigidObjectDataset:
 
 def load_observation_tensor(camera,
                             load_depth: bool = False)->ObservationTensor:
+    """! Creates an observation tensor to be input to the neural network model from the RGB and Depth images from the camera. 
+
+    @param    camera (Camera): Camera object associated with a real RGBDCamera to get current RGB or Depth image frames. 
+    @param    load_depth (bool, optional): Is depth image also used?. Defaults to False.
+
+    @return    bservationTensor: ObservationTensor object having RGB(D) image frames to run inference with MegaPose model. 
+    """
     if load_depth: 
         rgb_image, depth_image = camera.get_current_rgbd_frames()
     else: 
@@ -70,6 +90,14 @@ def load_observation_tensor(camera,
                                         camera.camera_matrix).cuda(), rgb_image, depth_image
 
 def load_detections(object_name, rgb_image, is_viz_crop = False) -> DetectionsType:
+    """! Gets Bounding box of the physical object who's pose we want from the user. (can also modified to get from an object detection model)
+
+    @param    object_name (str): Name of the physical object we are interested in. 
+    @param    rgb_image (numpy array): 3 channgel RGB image as a matrix.
+    @param    is_viz_crop (bool, optional): If true, the bounding box in the RGB image frame is rendered for visualization. Defaults to False.
+
+    @return    DetectionsType: Bounding box information of the physical object we are interested in. 
+    """
     bbox, cropped_image = get_bbox_annotations(rgb_image)
     infos = pd.DataFrame(
                 dict(
@@ -91,10 +119,18 @@ def load_detections(object_name, rgb_image, is_viz_crop = False) -> DetectionsTy
     return PandasTensorCollection(infos=infos, bboxes=bboxes)
 
 class MegaPose6D(ObjectPoseEstimator):#(object)
+    """! ObjectPoseEstimator Abstract Class implementation for the MegaPose Object Pose Estimator https://github.com/megapose6d/megapose6d
+    """
     def __init__(self,
                 object_name,
                 obj_dir_path:str,#.obj or .ply
                 model_name = "megapose-1.0-RGB-multi-hypothesis-icp"):
+        """! MegaPose6D class constructor. Loads pretrained MegaPose model. 
+
+        
+        @param    object_name (str): Name of the object whose pose we intend to estimate. 
+        @param    obj_dir_path (str): Path to the directory that has the pretrained MegaPose model. 
+        """
         ObjectPoseEstimator.__init__(self, "MegaPose6D")
         assert model_name in AVAILABLE_MODELS, "Specified model name is not available"
         self.model_info = NAMED_MODELS[model_name]
@@ -104,10 +140,21 @@ class MegaPose6D(ObjectPoseEstimator):#(object)
         self.pose_estimator_model = load_named_model(model_name, self.obj_dataset).cuda()
         
     def __del__(self):
+        """! MegaPose6D class destructor. Clears CUDA memory cache. 
+        """
         logger.info("Calling megapose destructor")
         torch.cuda.empty_cache()
         
     def estimate_pose(self, camera, is_viz_prediction = True):
+        """! Abstract method implemented for MegaPose6D. Uses Camera to get current RGB image frame and runs MegaPose6D inference model. 
+
+        @param    camera (RGBCamera): RGBCamera Object that is used to get the current RGB image frame from camera.
+        @param    is_viz_prediction (bool, optional): Should we visualize predited pose?. Defaults to True.
+
+        @return    numpy array: 3x1 angle-axis rotation vector of the estimated pose.
+        @return    numpy array: 3x1 translation vector of the estimated pose. 
+        @return    _data_type_: final predictions object output by MegaPose6D
+        """
         observation_tensor, rgb_image, depth_image = load_observation_tensor(camera,
                                                                 load_depth=self.model_info["requires_depth"])
         
