@@ -275,7 +275,7 @@ class MoveGroupPythonInterface(object):
         assert((pose_goal.position.x >= -0.167 ) and pose_goal.position.x < 0.673), "Computed translation in X is outside workspace"
         assert(pose_goal.position.y > -0.8 and pose_goal.position.y < 0.8), "Computed translation in Y is outside workspace"
         assert(abs(transformation_matrix[2,-1] - 0.02) < 0.01), "Computed translation in Z is incorrect"  
-
+        assert(np.dot(transformation_matrix[0:3,2], np.array([0.0, 0.0, 1.0])) < 0), "Computed orientation is incorrect"
         move_group.set_pose_target(pose_goal)
 
         ## Now, we call the planner to compute the plan and execute it.
